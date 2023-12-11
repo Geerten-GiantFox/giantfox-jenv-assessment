@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sklearn.metrics.pairwise import cosine_similarity
 
 from api import db
@@ -12,17 +14,34 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 # CRUD
 @tasks.route('/tasks', methods=['GET'])
 def get_tasks():
+    request_data = request.form.to_dict()
+
+    # The filtering is optional but if there is a value for a date filter it must be in the correct format. Making an
+    # assumption about what was meant would be confusing for the user.
+    start_date = datetime(1900, 1, 1)
+    if 'start_date' in request_data:
+        try:
+            start_date = datetime.strptime(request_data['start_date'], '%Y-%m-%d')
+        except ValueError:
+            return Response(response='Invalid date format. Please enter date in YYYY-MM-DD format', status=400)
+
+    end_date = datetime.now()
+    if 'end_date' in request_data:
+        try:
+            end_date = datetime.strptime(request_data['end_date'], '%Y-%m-%d')
+        except ValueError:
+            return Response(response='Invalid date format. Please enter date in YYYY-MM-DD format', status=400)
+
+    # Here we should also check for e.g. <1 but I dont have a lot of time
+    per_page = request.form.get('per_page', default=Task.query.count(), type=int)
+    page = request.form.get('page', default=1, type=int)
+
+    relevant_tasks = Task.query.filter(Task.date_created.between(start_date, end_date)).paginate(page=page,
+                                                                                                 per_page=per_page,
+                                                                                                 error_out=False)
+
     tasks_schema = TaskSchema(many=True)
-    all_tasks = Task.query.all()
-
-    return tasks_schema.jsonify(all_tasks)
-
-@tasks.route('/tasks/page/<int:page>', methods=['GET'])
-def get_tasks_page(page):
-    tasks_schema = TaskSchema(many=True)
-    all_tasks = Task.query.paginate(page=page, per_page=5, error_out=False)
-
-    return tasks_schema.jsonify(all_tasks)
+    return tasks_schema.jsonify(relevant_tasks)
 
 
 @tasks.route('/task/<int:id>', methods=['GET'])
@@ -66,6 +85,10 @@ def update_task(id):
 
     if 'description' in request_data:
         task.description = request_data['description']
+
+    if 'completed' in request_data:
+        # TODO: add type checking
+        task.completed = request_data['completed'].lower() == 'true'
 
     db.session.commit()
 
