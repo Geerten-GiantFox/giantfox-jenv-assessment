@@ -1,7 +1,12 @@
+from sklearn.metrics.pairwise import cosine_similarity
+
 from api import db
 from api.tasks.models import Task, TaskSchema
 from flask import Response, request
 from api.tasks import tasks
+import numpy as np
+
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 # CRUD
@@ -79,3 +84,34 @@ def delete_task(id):
     return Response(response="Task deleted successfully", status=200)
 
 
+# Lets do something slightly less basic for finding tasks.
+@tasks.route('tasks/find', methods=['GET'])
+def find_tasks():
+    request_data = request.form.to_dict()
+
+    # First check if all necessary data is available
+    if "query" not in request_data:
+        return Response(response="description required.", status=400)
+
+    # Get all tasks and convert them to the right format
+    all_tasks = Task.query.all()
+    all_tasks_text = [t.title + " " + t.description for t in all_tasks]
+
+    # Only use the search term words as vocab (presumably not a lot so this is faster)
+    vocab = request_data['query'].lower().split()
+    vectorizer = TfidfVectorizer(vocabulary=vocab, stop_words='english')
+    transformed_tasks = vectorizer.fit_transform(all_tasks_text)
+
+    # Transform the query using the same weights
+    query = vectorizer.transform([request_data['query']])
+
+    # Calculate the similarities and threshold them
+    cosine_similarities = cosine_similarity(query, transformed_tasks).flatten()
+    mask = cosine_similarities > 0.5
+
+    # Sort the tasks based on how well they fit the query, only return the good matches
+    sorted_indices = np.argsort(-cosine_similarities[mask])
+    sorted_tasks = [all_tasks[i] for i in np.where(mask)[0][sorted_indices]]
+
+    task_schema = TaskSchema(many=True)
+    return task_schema.jsonify(sorted_tasks)

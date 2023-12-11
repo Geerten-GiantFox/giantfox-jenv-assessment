@@ -1,5 +1,3 @@
-import unittest
-
 from tests.conftest import client
 
 
