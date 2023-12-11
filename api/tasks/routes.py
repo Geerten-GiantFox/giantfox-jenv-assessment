@@ -4,15 +4,25 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from api import db
 from api.tasks.models import Task, TaskSchema
-from flask import Response, request
+from flask import Response, request, current_app
 from api.tasks import tasks
 import numpy as np
+
+from api import validator
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 
+# Retrieving the api tokens in this way is not great, but I wanted to include something with authorization quickly. The
+# get_tasks end point is protected and requires a valid api token before it will answer. The validator decorator will
+# extract the token from the header and use the api_token_validation function to check if the token is valid
+def api_token_validation(api_token):
+    return api_token in current_app.api_tokens
+
+
 # CRUD
 @tasks.route('/tasks', methods=['GET'])
+@validator.validate_api_token(api_token_validation)
 def get_tasks():
     request_data = request.form.to_dict()
 
@@ -107,7 +117,8 @@ def delete_task(id):
     return Response(response="Task deleted successfully", status=200)
 
 
-# Lets do something slightly less basic for finding tasks.
+# Lets do something slightly less basic for finding tasks. We rank all tasks based on their similarity with the query
+# and return the most similar matches (if they are similar enough)
 @tasks.route('tasks/find', methods=['GET'])
 def find_tasks():
     request_data = request.form.to_dict()

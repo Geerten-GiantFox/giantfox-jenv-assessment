@@ -10,7 +10,7 @@ def add_record(client):
 
 # test that the test provides a clean db
 def test_db_empty(client):
-    response = client.get('api/v1/tasks')
+    response = client.get('api/v1/tasks', headers={'Authorization': 'abcd'})
 
     assert response.status_code == 200
     assert len(response.json) == 0
@@ -21,7 +21,7 @@ def test_get(client):
 
     assert response.status_code == 200
 
-    response = client.get('api/v1/task/1')
+    response = client.get('api/v1/task/1', headers={'Authorization': 'abcd'})
 
     assert response.status_code == 200
     assert response.json['id'] == 1
@@ -36,7 +36,7 @@ def test_get_multiple(client):
 
         assert response.status_code == 200
 
-    response = client.get('api/v1/tasks')
+    response = client.get('api/v1/tasks', headers={'Authorization': 'abcd'})
 
     assert response.status_code == 200
     assert len(response.json) == 10
@@ -49,21 +49,21 @@ def test_get_multiple_pagination(client):
         assert response.status_code == 200
 
     response = client.get('api/v1/tasks', data={
-        'per_page': 4})
+        'per_page': 4}, headers={'Authorization': 'abcd'})
 
     assert response.status_code == 200
     assert len(response.json) == 4
 
     response = client.get('api/v1/tasks', data={
         'per_page': 4,
-        'page': 2})
+        'page': 2}, headers={'Authorization': 'abcd'})
 
     assert response.status_code == 200
     assert len(response.json) == 4
 
     response = client.get('api/v1/tasks', data={
         'per_page': 4,
-        'page': 3})
+        'page': 3}, headers={'Authorization': 'abcd'})
 
     assert response.status_code == 200
     assert len(response.json) == 2
