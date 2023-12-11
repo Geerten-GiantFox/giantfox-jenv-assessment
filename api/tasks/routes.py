@@ -1,55 +1,29 @@
-import os
-
-from flask import Flask, request, Response
-from flask_sqlalchemy import SQLAlchemy
-from flask_marshmallow import Marshmallow
-
-basedir = os.path.abspath(os.path.dirname(__file__))
-
-app = Flask(__name__)
-
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///' + os.path.join(basedir, 'tasks.db')
-
-db = SQLAlchemy(app)
-
-
-class Task(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.String())
-
-
-with app.app_context():
-    db.create_all()
-
-ma = Marshmallow(app)
-
-
-class TaskSchema(ma.SQLAlchemyAutoSchema):
-    class Meta:
-        model = Task
-        load_instance = True
-
-
-# sanity check
-@app.route('/api/v1/status', methods=['GET'])
-def get_status():
-    return Response('OK', status=200)
+from api import db
+from api.tasks.models import Task, TaskSchema
+from flask import Response, request
+from api.tasks import tasks
 
 
 # CRUD
-@app.route('/api/v1/tasks', methods=['GET'])
+@tasks.route('/tasks', methods=['GET'])
 def get_tasks():
     tasks_schema = TaskSchema(many=True)
     all_tasks = Task.query.all()
 
     return tasks_schema.jsonify(all_tasks)
 
+@tasks.route('/tasks/page/<int:page>', methods=['GET'])
+def get_tasks_page(page):
+    tasks_schema = TaskSchema(many=True)
+    all_tasks = Task.query.paginate(page=page, per_page=5, error_out=False)
 
-@app.route('/api/v1/task/<int:id>', methods=['GET'])
+    return tasks_schema.jsonify(all_tasks)
+
+
+@tasks.route('/task/<int:id>', methods=['GET'])
 def get_task(id):
     task_schema = TaskSchema(many=False)
-    task = Task.query.get(id)
+    task = db.session.get(Task, id)
 
     if task is None:
         return Response(response="Task not found", status=404)
@@ -57,7 +31,7 @@ def get_task(id):
     return task_schema.jsonify(task)
 
 
-@app.route('/api/v1/task', methods=['POST'])
+@tasks.route('/task', methods=['POST'])
 def create_task():
     # check if required data is included
     request_data = request.form.to_dict()
@@ -74,9 +48,9 @@ def create_task():
     return task_schema.jsonify(task)
 
 
-@app.route('/api/v1/task/<int:id>', methods=['PUT'])
+@tasks.route('/task/<int:id>', methods=['PUT'])
 def update_task(id):
-    task = Task.query.get(id)
+    task = db.session.get(Task, id)
 
     if task is None:
         return Response(response="Task not found", status=404)
@@ -93,9 +67,9 @@ def update_task(id):
     return Response(response="Task updated successfully", status=200)
 
 
-@app.route('/api/v1/task/<int:id>', methods=['DELETE'])
+@tasks.route('/task/<int:id>', methods=['DELETE'])
 def delete_task(id):
-    task = Task.query.get(id)
+    task = db.session.get(Task, id)
 
     if task is None:
         return Response(response="Task not found", status=404)
@@ -105,5 +79,3 @@ def delete_task(id):
     return Response(response="Task deleted successfully", status=200)
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
